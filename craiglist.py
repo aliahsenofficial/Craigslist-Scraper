@@ -3,10 +3,14 @@ import requests
 from csv import writer
 from bs4 import BeautifulSoup
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from datetime import datetime, timedelta
 
 # driver = webdriver.Chrome()
-driver = webdriver.Chrome(executable_path="C:/Users/AliAhsen/Desktop/craiglist/chromedriver.exe")
+options = Options()
+options.headless = True
+# driver = webdriver.Chrome(options=options)
+driver = webdriver.Chrome(options=options, executable_path="C:/Users/AliAhsen/Desktop/craiglist/chromedriver.exe")
 
 
 header = {
