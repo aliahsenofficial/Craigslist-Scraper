@@ -18,21 +18,17 @@ header = {
 
 keywords = ['Apartment building', 'Plex', 'Multi', 'Apartment Complex']
 
-states = ['https://geo.craigslist.org/iso/us/tx', 'https://geo.craigslist.org/iso/us/tn', 
-          'https://geo.craigslist.org/iso/us/sc', 'https://geo.craigslist.org/iso/us/nc', 
-          'https://geo.craigslist.org/iso/us/MO', 'https://geo.craigslist.org/iso/us/in', 
-          'https://geo.craigslist.org/iso/us/GA', 'https://geo.craigslist.org/iso/us/IN'
+states = ['https://geo.craigslist.org/iso/us/GA', 'https://geo.craigslist.org/iso/us/nc', 
+          'https://geo.craigslist.org/iso/us/oh', 'https://geo.craigslist.org/iso/us/tn', 
+          'https://geo.craigslist.org/iso/us/MO', 'https://geo.craigslist.org/iso/us/in',
+          'https://geo.craigslist.org/iso/us/sc'
           ]
 
 postIds = []      
 titles = [] 
 
 # Function to get listing details
-def get_details(listing_url, Keyword, state_name, page):
-    page.goto(url=listing_url)
-    page.wait_for_timeout(2000)
-    soup = BeautifulSoup(page.content(), 'html.parser')
-
+def get_details(listing_url, Keyword, state_name, soup):
     Post_ID = soup.select('p.postinginfo')[1].text.replace('post id: ', '')
     Title = soup.find('span', {'id': 'titletextonly'}).text.strip()
     try: 
@@ -43,7 +39,7 @@ def get_details(listing_url, Keyword, state_name, page):
         postIds.append(Post_ID)
         titles.append(Title)
         
-        Days_Posted = soup.find('p', 'postinginfo').text.replace('\n', '').strip().replace('Posted\n', '')
+        Days_Posted = soup.find('p', 'postinginfo').text.strip()
         try:
             Price = soup.find('span', 'price').text
         except:
@@ -57,56 +53,66 @@ def get_details(listing_url, Keyword, state_name, page):
         except:
             Location = 'N/A'
 
-        #Saving data in google sheets
+        # Saving data in google sheets
         sh.append_row([listing_url, Post_ID, Title, Price,  Description, Days_Posted, Location, state_name, Keyword])
 
 
-#Function to get city URLs from states 
+# Function to get city URLs from states 
 def get_cities(state_url):
     response = requests.get(state_url, headers=header)
     soup = BeautifulSoup(response.text, 'html.parser')
 
-    #Getting the state name
+    # Getting the state name
     state_name = soup.find('li', 'crumb').text.strip()
 
-    #Getting all cities name
+    # Getting all cities
     soup = soup.find('ul', 'geo-site-list')
-    cities = soup.find_all('li')
-    i = 0
+    cities = soup.find_all('a')
+    i = 1
 
-    #Opening brower window
+    # Opening brower window
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
 
-        #Visiting all cities in the state
+        # Vsiting all cities in the state
         for city in cities:
             for keyword in keywords:
-                city_url = city.find('a')['href']
-                city_url += f'/search/rea?query={keyword}#search=1~gallery~0~0'
-                print('\n', city_url)
-                # print(url)
+                checking_url = city.get('href')
 
-                page.goto(url=city_url)
+                city_url = checking_url + f'/search/rea?query={keyword}#search=1~gallery~0~0'
+                print('\n', city_url)
+
+                page.goto(url=city_url, timeout = 0)
                 page.wait_for_timeout(5000)
                 soup = BeautifulSoup(page.content(), 'html.parser')
 
-                listings = soup.find_all('div', 'gallery-card')
-                for listing in listings[:3]:
-                    try:
-                        listing_url = listing.find('a', 'titlestring')['href']
-                        print(f"Listing # {i+1}: ", listing_url)
+                # Finding listings
+                listings = soup.find_all('a', 'main')
 
-                        #Visiting each listing and getting data using the function
-                        get_details(listing_url, keyword, state_name, page)
-                        i += 1
-                    except:
-                        pass
+                # if len(listings) == 0:
+                #     listings = soup.find_all('li', 'result-row')
+
+                for listing in listings:
+                        listing_url = listing.get('href')
+
+                        if checking_url in listing_url:
+                            print(f"Listing # {i}: ", listing_url)
+
+                            page.goto(url=listing_url)
+                            page.wait_for_timeout(2000)
+                            listing_soup = BeautifulSoup(page.content(), 'html.parser')
+                            
+                            # Visiting each listing and getting data using the function
+                            get_details(listing_url, keyword, state_name, listing_soup)
+                            i += 1
         browser.close()
     return i
 
 
 if __name__ == '__main__':
     listings_scraped = 0
-    for state in states:
+    for state in states[:3]:
         listings_scraped += get_cities(state)
+
+    print("\n\n\nTotal Listings Scraper: ", listings_scraped)
